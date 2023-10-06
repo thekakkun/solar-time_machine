@@ -1,5 +1,7 @@
 // import * as wasm from "../solar_tools/pkg/";
 
+import Camera from "./components/Camera";
+
 export default function App() {
-  return <h1>Hello World!</h1>;
+  return <Camera></Camera>;
 }
