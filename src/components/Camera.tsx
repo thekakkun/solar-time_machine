@@ -1,28 +1,44 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function Camera() {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [media, setMedia] = useState<MediaStream | null>(null);
+
+  async function getMedia() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+    });
+
+    setMedia(stream);
+  }
 
   useEffect(() => {
-    const setStream = async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false,
-      });
+    function draw(video: HTMLVideoElement) {
+      const ctx = canvasRef.current?.getContext("2d");
+      ctx?.drawImage(video, 0, 0);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    };
+      requestAnimationFrame(() => draw(video));
+    }
 
-    setStream().catch(console.error);
-  }, []);
+    if (media && canvasRef.current) {
+      let video = document.createElement("video");
+      video.srcObject = media;
+      video.play();
+      console.log(media);
+
+      requestAnimationFrame(() => draw(video));
+    }
+  }, [media, canvasRef]);
 
   return (
     <>
-      <button>Hey!</button>
-      <video ref={videoRef}></video>
+      {media ? (
+        <>
+          <canvas height={480} width={640} ref={canvasRef}></canvas>
+        </>
+      ) : (
+        <button onClick={async () => await getMedia()}>get video</button>
+      )}
     </>
   );
 }
