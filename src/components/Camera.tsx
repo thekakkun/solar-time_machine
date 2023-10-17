@@ -10,10 +10,7 @@ export default function Camera() {
 
   async function getMediaStream() {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: width,
-        height: height,
-      },
+      video: true,
     });
 
     setMedia(stream);
@@ -21,20 +18,35 @@ export default function Camera() {
 
   // If stream is ready, get it processed, then start draw loop
   useEffect(() => {
-    let myReq: number;
+    let myReq: number = 0;
 
     async function draw(
       bufferVideo: HTMLVideoElement,
       bufferCanvas: HTMLCanvasElement
     ) {
+      if (bufferVideo.videoHeight === 0 || bufferVideo.videoWidth === 0) {
+        myReq = requestAnimationFrame(
+          async () => await draw(bufferVideo, bufferCanvas)
+        );
+        return;
+      }
+      bufferCanvas.height = bufferVideo.videoHeight;
+      bufferCanvas.width = bufferVideo.videoWidth;
+
       const bufferCtx = bufferCanvas.getContext("2d");
       if (bufferCtx === null) {
         cancelAnimationFrame(myReq);
         return;
       }
-      bufferCtx.drawImage(bufferVideo, 0, 0, width, height);
+      bufferCtx.drawImage(bufferVideo, 0, 0);
 
-      const data = bufferCtx.getImageData(0, 0, width, height);
+      const size = Math.min(bufferVideo.videoHeight, bufferVideo.videoWidth);
+      const data = bufferCtx.getImageData(
+        (bufferCanvas.width - size) / 2,
+        (bufferCanvas.height - size) / 2,
+        size,
+        size
+      );
       const processedData = wasm.process_img(data);
 
       const ctx = canvasRef.current?.getContext("2d");
@@ -51,7 +63,7 @@ export default function Camera() {
       );
     }
 
-    if (media) {
+    if (media && canvasRef) {
       // Create dummy video element to send stream to
       const bufferVideo = document.createElement("video");
       bufferVideo.srcObject = media;
@@ -59,19 +71,20 @@ export default function Camera() {
 
       // Create dummy canvas element to draw stream to
       const bufferCanvas = document.createElement("canvas");
-      bufferCanvas.height = height;
-      bufferCanvas.width = width;
-
-      myReq = requestAnimationFrame(
-        async () => await draw(bufferVideo, bufferCanvas)
-      );
+      if (myReq === 0) {
+        myReq = requestAnimationFrame(
+          async () => await draw(bufferVideo, bufferCanvas)
+        );
+      }
     }
-  }, [media]);
+  }, [media, canvasRef]);
 
   return (
     <>
       {media ? (
-        <canvas height={height} width={width} ref={canvasRef}></canvas>
+        <>
+          <canvas height={height} width={width} ref={canvasRef}></canvas>
+        </>
       ) : (
         <button onClick={async () => await getMediaStream()}>get video</button>
       )}
