@@ -2,9 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import * as wasm from "../../solar_tools/pkg";
 
 export default function Camera() {
-  const width = 512;
-  const height = 512;
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [media, setMedia] = useState<MediaStream | null>(null);
 
@@ -19,11 +16,15 @@ export default function Camera() {
   // If stream is ready, get it processed, then start draw loop
   useEffect(() => {
     let myReq: number = 0;
+    const outSize = 128;
+    const pxSize = 4;
+    const gap = 1;
 
     async function draw(
       bufferVideo: HTMLVideoElement,
       bufferCanvas: HTMLCanvasElement
     ) {
+      // Wait for data to show up on video element
       if (bufferVideo.videoHeight === 0 || bufferVideo.videoWidth === 0) {
         myReq = requestAnimationFrame(
           async () => await draw(bufferVideo, bufferCanvas)
@@ -47,23 +48,41 @@ export default function Camera() {
         size,
         size
       );
-      const processedData = wasm.process_img(data);
+
+      const processedData = wasm.process_img(data, outSize);
+
+      const saturations = processedData.map((val) =>
+        Math.floor((val / 0xff) * 50)
+      );
 
       const ctx = canvasRef.current?.getContext("2d");
-      ctx?.drawImage(
-        await createImageBitmap(processedData),
-        0,
-        0,
-        width,
-        height
-      );
+
+      for (let row = 0; row < outSize; row++) {
+        for (let col = 0; col < outSize; col++) {
+          if (ctx) {
+            ctx.fillStyle = `hsl(50, 100%, ${
+              saturations[row * outSize + col]
+            }%)`;
+          }
+          ctx?.fillRect(
+            col * (pxSize + gap),
+            row * (pxSize + gap),
+            pxSize,
+            pxSize
+          );
+        }
+      }
 
       myReq = requestAnimationFrame(
         async () => await draw(bufferVideo, bufferCanvas)
       );
     }
 
-    if (media && canvasRef) {
+    if (media && canvasRef.current) {
+      // Set canvas dimensions
+      canvasRef.current.height = outSize * (pxSize + gap) - gap;
+      canvasRef.current.width = outSize * (pxSize + gap) - gap;
+
       // Create dummy video element to send stream to
       const bufferVideo = document.createElement("video");
       bufferVideo.srcObject = media;
@@ -83,7 +102,7 @@ export default function Camera() {
     <>
       {media ? (
         <>
-          <canvas height={height} width={width} ref={canvasRef}></canvas>
+          <canvas style={{ backgroundColor: "grey" }} ref={canvasRef}></canvas>
         </>
       ) : (
         <button onClick={async () => await getMediaStream()}>get video</button>
